@@ -13,7 +13,7 @@ EMAIL_TO = os.getenv("EMAIL_TO")
 
 STATE_FILE = "last_seen_id.txt"
 
-SEARCH_URL = "https://www.oireachtas.ie/en/debates/questions/?q=join+family+visa"
+SEARCH_URL = "https://www.oireachtas.ie/en/search/?searchType=questions&questionType=all&datePeriod=term&fromDate=01%2F07%2F2012&originalFilter=%2Fen%2Fdebates%2Fquestions%2F%3FdatePeriod%3Dterm%26questionType%3Dall%26fromDate%3D01%252F07%252F2012%26resultsPerPage%3D50%26viewBy%3Dday&q=join%2Bfamily%2Bvisa"
 
 def fetch_pqs():
     print(f"[DEBUG] Fetching PQs from {SEARCH_URL}")
