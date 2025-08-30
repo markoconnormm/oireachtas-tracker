@@ -2,8 +2,8 @@ name: Check Join Family Visa PQs
 
 on:
   schedule:
-    - cron: "30 7 * * *"   # 07:30 UTC (same as 07:30 Dublin in winter; adjust if needed)
-  workflow_dispatch:       # allow manual runs
+    - cron: "30 7 * * *"   # 07:30 UTC daily
+  workflow_dispatch:
 
 jobs:
   check:
@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests beautifulsoup4
       - name: Run script
         env:
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
