@@ -1,10 +1,10 @@
 import requests
+from bs4 import BeautifulSoup
 import smtplib
 import os
 from email.mime.text import MIMEText
-from datetime import date
 
-# Config: set these as GitHub Secrets or env vars
+# Config: set via GitHub Secrets or env vars
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 EMAIL_USER = os.getenv("EMAIL_USER")
@@ -13,16 +13,28 @@ EMAIL_TO = os.getenv("EMAIL_TO")
 
 STATE_FILE = "last_seen_id.txt"
 
-API_URL = "https://api.oireachtas.ie/v1/parliamentaryquestions"
-SEARCH_TERM = "join family visa"
+SEARCH_URL = "https://www.oireachtas.ie/en/debates/questions/?q=join+family+visa"
 
-def get_latest_questions():
-    today = date.today().isoformat()
-    url = f"{API_URL}?q={SEARCH_TERM}&date_start={today}&date_end={today}"
-    resp = requests.get(url)
+def fetch_pqs():
+    resp = requests.get(SEARCH_URL, headers={"User-Agent": "Mozilla/5.0"})
     resp.raise_for_status()
-    data = resp.json()
-    return data.get("results", [])
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    results = []
+    for item in soup.select(".result-item"):  # class used in search results
+        link_tag = item.select_one("a")
+        if not link_tag:
+            continue
+        link = "https://www.oireachtas.ie" + link_tag["href"]
+        title = link_tag.get_text(strip=True)
+        date_tag = item.select_one(".result-date")
+        date = date_tag.get_text(strip=True) if date_tag else "Unknown date"
+
+        # Use the PQ link as a unique ID
+        pq_id = link
+        results.append({"id": pq_id, "title": title, "date": date, "link": link})
+
+    return results
 
 def load_last_seen():
     if os.path.exists(STATE_FILE):
@@ -30,9 +42,9 @@ def load_last_seen():
             return f.read().strip()
     return None
 
-def save_last_seen(q_id):
+def save_last_seen(pq_id):
     with open(STATE_FILE, "w") as f:
-        f.write(q_id)
+        f.write(pq_id)
 
 def send_email(subject, body):
     msg = MIMEText(body, "plain")
@@ -47,25 +59,25 @@ def send_email(subject, body):
 
 def main():
     last_seen = load_last_seen()
-    new_items = []
+    results = fetch_pqs()
 
-    questions = get_latest_questions()
-    for item in questions:
-        pq_id = item.get("parliamentaryQuestionId")
-        if last_seen is None or pq_id != last_seen:
-            new_items.append(item)
+    if not results:
+        return
+
+    # Assume newest is first on page
+    new_items = []
+    for r in results:
+        if r["id"] == last_seen:
+            break
+        new_items.append(r)
 
     if new_items:
-        latest_id = new_items[0].get("parliamentaryQuestionId")
+        latest_id = new_items[0]["id"]
         save_last_seen(latest_id)
 
         body_lines = []
-        for q in new_items:
-            pq_id = q.get("parliamentaryQuestionId")
-            pq_date = q.get("date")
-            title = q.get("parliamentaryQuestionType", "")
-            link = f"https://www.oireachtas.ie/en/debates/question/{pq_id}"
-            body_lines.append(f"- {pq_date}: {title} ({link})")
+        for r in new_items:
+            body_lines.append(f"- {r['date']}: {r['title']} ({r['link']})")
 
         body = "\n".join(body_lines)
         send_email("New Join Family Visa PQs", body)
